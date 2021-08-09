@@ -123,6 +123,8 @@ setup = script do
                 start = date 2020 Jan 1
                 end = date 2020 Dec 31
                 location = (0.0, 0.0) : GPS
+                trigger = AboveAtAnyTime 100.0
+
 
     prop2 <- submit p2 do
         createCmd InsuranceEventProposal with
@@ -133,6 +135,7 @@ setup = script do
                 start = date 2020 Jan 1
                 end = date 2020 Dec 31
                 location = (0.0, 0.0) : GPS
+                trigger = AboveAtAnyTime 7.0
     
     prop3 <- submit p3 do
         createCmd InsuranceEventProposal with
@@ -143,6 +146,7 @@ setup = script do
                 start = date 2020 Jan 1
                 end = date 2020 Dec 31
                 location = (0.0, 0.0) : GPS
+                trigger = AboveAtAnyTime 45.0
 
     -- 2 are accepted, 1 is rejected
     approve1 <- submit admin do

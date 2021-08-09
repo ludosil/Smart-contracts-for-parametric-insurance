@@ -9,6 +9,13 @@ gpsIsValid gps =
     (snd gps) >= -180.0 &&
     (snd gps) < 180.0
 
+data ContractTrigger =
+    AboveAtAnyTime with strike : Decimal |
+    BelowAtAnyTime with strike : Decimal |
+    AboveFor       with strike : Decimal; periodInDaty : Decimal |
+    BelowFor       with strike : Decimal; periodInDaty : Decimal
+        deriving (Eq,Show)
+ 
 data ParametricContractType = 
   WindSpeed | 
   RichterScale |
@@ -21,7 +28,7 @@ data InsuranceEvent = InsuranceEvent with
   start : Date
   end : Date
   location : GPS
-  -- triggerFunction : [(Date, Decimal)] -> Bool
+  trigger : ContractTrigger
     deriving (Eq, Show)
 
 -- check type can be created
@@ -30,4 +37,4 @@ ieEarthquake = InsuranceEvent with
     start = date 2020 Jan 1
     end = date 2020 Dec 31
     location = (1.0, 1.0) : GPS
-    -- triggerFunction : [(Date, Decimal)] -> Bool
+    trigger = AboveAtAnyTime 0.0
