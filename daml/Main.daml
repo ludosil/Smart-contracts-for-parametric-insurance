@@ -1,0 +1,120 @@
+module Main where
+
+import Daml.Script
+
+template InsuranceEventProposal
+    with
+        proposer : Party
+        approver : Party
+        text     : Text
+    where
+        signatory proposer 
+        observer approver
+    
+        controller approver can
+            InsuranceEventProposal_Approve : ContractId InsuranceEventApproval
+                with
+                    observers : [Party]
+                do
+                    create InsuranceEventApproval with
+                        approver = approver
+                        observers = observers
+
+            InsuranceEventProposal_Reject : ()
+                do
+                    pure()
+      
+template InsuranceEventApproval
+    with 
+        approver : Party
+        observers : [Party]
+    where
+        signatory approver
+        observer observers
+
+        nonconsuming choice ProposeInsuranceContract : ContractId InsuranceContractProposal
+            with
+                proposer : Party
+                proposee : Party
+            controller proposer
+            do
+                create InsuranceContractProposal with
+                    proposer = proposer
+                    proposee = proposee
+
+template InsuranceContractProposal
+    with
+        proposer : Party
+        proposee : Party
+    where
+        signatory proposer
+        observer proposee
+
+        controller proposee can 
+            InsuranceContractProposal_Accept : ContractId InsuranceContractAgreement
+                with
+                    party1 : Party
+                    party2 : Party
+                do
+                    create InsuranceContractAgreement with
+                        party1 = party2
+                        party2 = party2
+
+template InsuranceContractAgreement
+    with
+        party1 : Party
+        party2 : Party
+    where
+        signatory party1, party2
+        
+  
+setup : Script ()
+setup = script do
+
+    -- allocate admin and 3 buyers/sellers
+    admin <- allocateParty "Admin"
+    p1 <- allocateParty "P1"
+    p2 <- allocateParty "P2"
+    p3 <- allocateParty "P3"
+    let observers = [p1, p2, p3]
+
+    -- each buyer/seller proposes an insurance event proposal
+    prop1 <- submit p1 do
+        createCmd InsuranceEventProposal with
+            proposer = p1
+            approver = admin
+            text = ""
+
+    prop2 <- submit p2 do
+        createCmd InsuranceEventProposal with
+            proposer = p2
+            approver = admin
+            text = ""
+    
+    prop3 <- submit p3 do
+        createCmd InsuranceEventProposal with
+            proposer = p3
+            approver = admin
+            text = ""
+
+    -- 2 are accepted, 1 is rejected
+    approve1 <- submit admin do
+        exerciseCmd prop1 InsuranceEventProposal_Approve with observers = observers
+
+    approve2 <- submit admin do
+        exerciseCmd prop2 InsuranceEventProposal_Approve with observers = observers    
+
+    submit admin do
+        exerciseCmd prop3 InsuranceEventProposal_Reject
+
+    -- for the 2 accepted events, an insurance contract is proposed
+    propIC1 <- submit p1 do
+        exerciseCmd approve1 ProposeInsuranceContract with proposer = p1; proposee = p2
+    propIC2 <- submit p2 do
+        exerciseCmd approve1 ProposeInsuranceContract with proposer = p2; proposee = p3
+        
+    -- the proposed contract is agreed    
+    acceptIC1 <- submit p2 do
+        exerciseCmd propIC1 InsuranceContractProposal_Accept with party1 = p1; party2 = p2
+    
+    pure()
