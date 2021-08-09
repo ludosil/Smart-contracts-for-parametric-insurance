@@ -75,6 +75,33 @@ template InsuranceContractAgreement
     where
         signatory party1, party2
         
+template InsuranceContractPayout
+    with
+        admin        : Party
+        exercised    : Bool
+        party1Payout : Decimal
+        party2Payout : Decimal
+    where 
+        signatory admin
+
+template TrustedDataSource
+    with
+        admin      : Party
+        dataStream : [(Date, Decimal)]
+    where
+        signatory admin
+
+        controller admin can
+            ApplyDataToEvaluateContract : ContractId InsuranceContractPayout
+                do
+                    -- code to feed data stream to trigger function
+                    create InsuranceContractPayout with
+                        admin = admin
+                        exercised = True
+                        party1Payout = 0.0
+                        party2Payout = 0.0
+
+
   
 setup : Script ()
 setup = script do
@@ -137,4 +164,15 @@ setup = script do
     acceptIC1 <- submit p2 do
         exerciseCmd propIC1 InsuranceContractProposal_Accept with party1 = p1; party2 = p2
     
+    -- create a data source
+    let windSpeed = [(date 2020 Jan 31, 0.0), (date 2020 Dec 31, 0.0)] : [(Date, Decimal)] 
+    windSpeedDataSource <- submit admin do
+        createCmd TrustedDataSource with
+            admin = admin
+            dataStream = windSpeed
+
+    -- apply data source to evaluate contract
+    evaluateIC1 <- submit admin do
+        exerciseCmd windSpeedDataSource ApplyDataToEvaluateContract
+
     pure()
