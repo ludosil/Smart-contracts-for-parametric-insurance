@@ -21,6 +21,7 @@ template InsuranceEventProposal
                     create InsuranceEventApproval with
                         approver = approver
                         observers = observers
+                        insEvt = insEvt
 
             InsuranceEventProposal_Reject : ()
                 do
@@ -28,8 +29,9 @@ template InsuranceEventProposal
       
 template InsuranceEventApproval
     with 
-        approver : Party
+        approver  : Party
         observers : [Party]
+        insEvt    : InsuranceEvent
     where
         signatory approver
         observer observers
@@ -43,11 +45,13 @@ template InsuranceEventApproval
                 create InsuranceContractProposal with
                     proposer = proposer
                     proposee = proposee
+                    insEvt = insEvt
 
 template InsuranceContractProposal
     with
         proposer : Party
         proposee : Party
+        insEvt   : InsuranceEvent
     where
         signatory proposer
         observer proposee
@@ -61,11 +65,13 @@ template InsuranceContractProposal
                     create InsuranceContractAgreement with
                         party1 = party2
                         party2 = party2
+                        insEvt = insEvt
 
 template InsuranceContractAgreement
     with
         party1 : Party
         party2 : Party
+        insEvt   : InsuranceEvent
     where
         signatory party1, party2
         
