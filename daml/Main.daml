@@ -1,12 +1,14 @@
 module Main where
 
 import Daml.Script
+import Types
+import DA.Date
 
 template InsuranceEventProposal
     with
         proposer : Party
         approver : Party
-        text     : Text
+        insEvt   : InsuranceEvent
     where
         signatory proposer 
         observer approver
@@ -83,19 +85,31 @@ setup = script do
         createCmd InsuranceEventProposal with
             proposer = p1
             approver = admin
-            text = ""
+            insEvt = InsuranceEvent with
+                pcType = WindSpeed
+                start = date 2020 Jan 1
+                end = date 2020 Dec 31
+                location = (0.0, 0.0) : GPS
 
     prop2 <- submit p2 do
         createCmd InsuranceEventProposal with
             proposer = p2
             approver = admin
-            text = ""
+            insEvt = InsuranceEvent with
+                pcType = RichterScale
+                start = date 2020 Jan 1
+                end = date 2020 Dec 31
+                location = (0.0, 0.0) : GPS
     
     prop3 <- submit p3 do
         createCmd InsuranceEventProposal with
             proposer = p3
             approver = admin
-            text = ""
+            insEvt = InsuranceEvent with
+                pcType = Temperature
+                start = date 2020 Jan 1
+                end = date 2020 Dec 31
+                location = (0.0, 0.0) : GPS
 
     -- 2 are accepted, 1 is rejected
     approve1 <- submit admin do

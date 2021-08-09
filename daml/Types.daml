@@ -1,0 +1,33 @@
+module Types where
+import DA.Date
+
+type GPS = (Decimal, Decimal)
+gpsIsValid : GPS -> Bool
+gpsIsValid gps = 
+    (fst gps) >= -90.0 &&
+    (fst gps) < 90.0 && 
+    (snd gps) >= -180.0 &&
+    (snd gps) < 180.0
+
+data ParametricContractType = 
+  WindSpeed | 
+  RichterScale |
+  WaterLevel |
+  Temperature
+    deriving (Eq, Show)
+
+data InsuranceEvent = InsuranceEvent with
+  pcType : ParametricContractType
+  start : Date
+  end : Date
+  location : GPS
+  -- triggerFunction : [(Date, Decimal)] -> Bool
+    deriving (Eq, Show)
+
+-- check type can be created
+ieEarthquake = InsuranceEvent with
+    pcType = RichterScale
+    start = date 2020 Jan 1
+    end = date 2020 Dec 31
+    location = (1.0, 1.0) : GPS
+    -- triggerFunction : [(Date, Decimal)] -> Bool
