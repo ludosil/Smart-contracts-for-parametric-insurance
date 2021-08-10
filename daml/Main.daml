@@ -4,7 +4,7 @@ import Daml.Script
 import Types
 import DA.Date
 
-template InsuranceEventProposal
+template InsurableEventProposal
     with
         proposer : Party
         approver : Party
@@ -14,7 +14,7 @@ template InsuranceEventProposal
         observer approver
     
         controller approver can
-            InsuranceEventProposal_Approve : ContractId InsuranceEventApproval
+            InsurableEventProposal_Approve : ContractId InsuranceEventApproval
                 with
                     observers : [Party]
                 do
@@ -23,7 +23,7 @@ template InsuranceEventProposal
                         observers = observers
                         insEvt = insEvt
 
-            InsuranceEventProposal_Reject : ()
+            InsurableEventProposal_Reject : ()
                 do
                     pure()
       
@@ -93,8 +93,12 @@ template TrustedDataSource
 
         controller admin can
             ApplyDataToEvaluateContract : ContractId InsuranceContractPayout
+                with
+                    icId : ContractId InsuranceContractAgreement
                 do
                     -- code to feed data stream to trigger function
+
+                    -- archive icId
                     create InsuranceContractPayout with
                         admin = admin
                         exercised = True
@@ -115,7 +119,7 @@ setup = script do
 
     -- each buyer/seller proposes an insurance event proposal
     prop1 <- submit p1 do
-        createCmd InsuranceEventProposal with
+        createCmd InsurableEventProposal with
             proposer = p1
             approver = admin
             insEvt = InsuranceEvent with
@@ -127,7 +131,7 @@ setup = script do
 
 
     prop2 <- submit p2 do
-        createCmd InsuranceEventProposal with
+        createCmd InsurableEventProposal with
             proposer = p2
             approver = admin
             insEvt = InsuranceEvent with
@@ -138,7 +142,7 @@ setup = script do
                 trigger = AboveAtAnyTime 7.0
     
     prop3 <- submit p3 do
-        createCmd InsuranceEventProposal with
+        createCmd InsurableEventProposal with
             proposer = p3
             approver = admin
             insEvt = InsuranceEvent with
@@ -150,13 +154,13 @@ setup = script do
 
     -- 2 are accepted, 1 is rejected
     approve1 <- submit admin do
-        exerciseCmd prop1 InsuranceEventProposal_Approve with observers = observers
+        exerciseCmd prop1 InsurableEventProposal_Approve with observers = observers
 
     approve2 <- submit admin do
-        exerciseCmd prop2 InsuranceEventProposal_Approve with observers = observers    
+        exerciseCmd prop2 InsurableEventProposal_Approve with observers = observers    
 
     submit admin do
-        exerciseCmd prop3 InsuranceEventProposal_Reject
+        exerciseCmd prop3 InsurableEventProposal_Reject
 
     -- for the 2 accepted events, an insurance contract is proposed
     propIC1 <- submit p1 do
@@ -177,6 +181,7 @@ setup = script do
 
     -- apply data source to evaluate contract
     evaluateIC1 <- submit admin do
-        exerciseCmd windSpeedDataSource ApplyDataToEvaluateContract
+        exerciseCmd windSpeedDataSource ApplyDataToEvaluateContract with
+            icId = acceptIC1
 
     pure()

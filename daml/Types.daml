@@ -23,7 +23,7 @@ data ParametricContractType =
   Temperature
     deriving (Eq, Show)
 
-data InsuranceEvent = InsuranceEvent with
+data InsurableEvent = InsurableEvent with
   pcType : ParametricContractType
   start : Date
   end : Date
@@ -32,7 +32,7 @@ data InsuranceEvent = InsuranceEvent with
     deriving (Eq, Show)
 
 -- check type can be created
-ieEarthquake = InsuranceEvent with
+ieEarthquake = InsurableEvent with
     pcType = RichterScale
     start = date 2020 Jan 1
     end = date 2020 Dec 31
