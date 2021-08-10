@@ -111,21 +111,30 @@ template InsuranceContractAgreement
                     -- (b2Ref, _) <- fetchByKey @Balance (admin, party2)
                     -- archive b1Ref
                     -- archive b2Ref
-                    (bBalRef, _) <- fetchByKey @Balance (admin, buyer)
-                    (sBalRef, _) <- fetchByKey @Balance (admin, seller)
+                    (bBalRef, bBal) <- fetchByKey @Balance (admin, buyer)
+                    (sBalRef, sBal) <- fetchByKey @Balance (admin, seller)
+
+                    let premium = (notional * insEvt.premiumPer100) / 100.0
+                    assertMsg 
+                        "Buyer does not have funds for premium"
+                        (bBal.freeFunds > premium)
+                    assertMsg 
+                        "Seller does not have funds for notional, net of premium received"
+                        (sBal.freeFunds + premium > notional)
+                    
                     archive bBalRef
                     archive sBalRef
                     
                     bUpdate <- create Balance with
                         party = buyer
                         admin = admin
-                        freeFunds = 100.0
-                        lockedFunds = 0.0
+                        freeFunds = bBal.freeFunds - premium
+                        lockedFunds = bBal.lockedFunds
                     sUpdate <- create Balance with
                         party = seller
                         admin = admin
-                        freeFunds = 100.0
-                        lockedFunds = 0.0
+                        freeFunds = sBal.freeFunds - notional + premium
+                        lockedFunds = sBal.lockedFunds + notional
                     icApproved <- create InsuranceContractApproved with
                         buyer = buyer
                         seller = seller
@@ -168,10 +177,10 @@ template InsuranceContractApproved
                         -- party2 = party2
                         buyer = buyer
                         seller = seller
+                        insEvt = insEvt
                         admin = admin
+                        notional = notional
                         exercised = True
-                        party1Payout = 0.0
-                        party2Payout = 0.0
 
 template InsuranceContractPayout
     with
@@ -179,10 +188,11 @@ template InsuranceContractPayout
         -- party2       : Party
         buyer       : Party
         seller       : Party
+        insEvt   : InsurableEvent
         admin        : Party
+        notional : Decimal
         exercised    : Bool
-        party1Payout : Decimal
-        party2Payout : Decimal
+
     where 
         signatory admin
 
@@ -196,20 +206,23 @@ template InsuranceContractPayout
                     -- (b2Ref, _) <- fetchByKey @Balance (admin, party2)
                     -- archive b1Ref
                     -- archive b2Ref
-                    (bBalRef, _) <- fetchByKey @Balance (admin, buyer)
-                    (sBalRef, _) <- fetchByKey @Balance (admin, seller)
+                    (bBalRef, bBal) <- fetchByKey @Balance (admin, buyer)
+                    (sBalRef, sBal) <- fetchByKey @Balance (admin, seller)
+
+                    let premium = (notional * insEvt.premiumPer100) / 100.0
+
                     archive bBalRef
                     archive sBalRef
                     bUpdate <- create Balance with
                         party = buyer
                         admin = admin
-                        freeFunds = 100.0
-                        lockedFunds = 0.0
+                        freeFunds = if exercised then bBal.freeFunds + notional else bBal.freeFunds
+                        lockedFunds = bBal.lockedFunds
                     sUpdate <- create Balance with
                         party = seller
                         admin = admin
-                        freeFunds = 100.0
-                        lockedFunds = 0.0
+                        freeFunds = if not exercised then sBal.freeFunds + notional else sBal.freeFunds
+                        lockedFunds = sBal.lockedFunds - notional --freed whatever happens
                     return (bUpdate, sUpdate)
   
 template Balance
