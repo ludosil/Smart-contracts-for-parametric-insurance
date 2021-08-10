@@ -15,11 +15,11 @@ template InsurableEventProposal
         observer approver
     
         controller approver can
-            InsurableEventProposal_Approve : ContractId InsurableEventApproval
+            InsurableEventProposal_Approve : ContractId InsurableEventApproved
                 with
                     observers : [Party]
                 do
-                    create InsurableEventApproval with
+                    create InsurableEventApproved with
                         approver = approver
                         observers = observers
                         insEvt = insEvt
@@ -28,7 +28,7 @@ template InsurableEventProposal
                 do
                     pure()
       
-template InsurableEventApproval
+template InsurableEventApproved
     with 
         approver  : Party
         observers : [Party]
@@ -41,20 +41,26 @@ template InsurableEventApproval
             with
                 proposer : Party
                 proposee : Party
+                asBuyer  : Bool
+                notional : Decimal
             controller proposer
             do
                 create InsuranceContractProposal with
                     proposer = proposer
                     proposee = proposee
+                    asBuyer = asBuyer
                     insEvt = insEvt
                     admin = approver
+                    notional = notional
 
 template InsuranceContractProposal
     with
         proposer : Party
         proposee : Party
+        asBuyer  : Bool
         insEvt   : InsurableEvent
         admin    : Party
+        notional : Decimal
     where
         signatory proposer
         observer proposee, admin
@@ -63,26 +69,36 @@ template InsuranceContractProposal
         controller proposee can 
             InsuranceContractProposal_Accept : ContractId InsuranceContractAgreement
                 with
-                    party1 : Party
-                    party2 : Party
+                    -- party1 : Party
+                    -- party2 : Party
+                    -- buyer : Party
+                    -- seller : Party
+                    counterpart : Party
+
                 do
                     create InsuranceContractAgreement with
-                        party1 = party1
-                        party2 = party2
+                        -- party1 = party1
+                        -- party2 = party2
+                        buyer = if asBuyer then counterpart else proposee
+                        seller = if asBuyer then proposee else counterpart
                         insEvt = insEvt
                         admin = admin
+                        notional = notional
 
 template InsuranceContractAgreement
     with
-        party1 : Party
-        party2 : Party
+        -- party1 : Party
+        -- party2 : Party
+        buyer : Party
+        seller : Party
         insEvt   : InsurableEvent
         admin : Party
+        notional : Decimal
     where
-        signatory party1, party2
+        signatory buyer, seller
         observer admin
         ensure 
-            (party1 /= party2)
+            (buyer /= seller)
 
         controller admin can
 
@@ -91,38 +107,47 @@ template InsuranceContractAgreement
                 --     b1 : ContractId Balance
                 --     b2 : ContractId Balance
                 do
-                    (b1Ref, _) <- fetchByKey @Balance (admin, party1)
-                    (b2Ref, _) <- fetchByKey @Balance (admin, party2)
-                    archive b1Ref
-                    archive b2Ref
-                    b1Update <- create Balance with
-                        party = party1
+                    -- (b1Ref, _) <- fetchByKey @Balance (admin, party1)
+                    -- (b2Ref, _) <- fetchByKey @Balance (admin, party2)
+                    -- archive b1Ref
+                    -- archive b2Ref
+                    (bBalRef, _) <- fetchByKey @Balance (admin, buyer)
+                    (sBalRef, _) <- fetchByKey @Balance (admin, seller)
+                    archive bBalRef
+                    archive sBalRef
+                    
+                    bUpdate <- create Balance with
+                        party = buyer
                         admin = admin
                         freeFunds = 100.0
                         lockedFunds = 0.0
-                    b2Update <- create Balance with
-                        party = party2
+                    sUpdate <- create Balance with
+                        party = seller
                         admin = admin
                         freeFunds = 100.0
                         lockedFunds = 0.0
                     icApproved <- create InsuranceContractApproved with
-                        party1 = party1
-                        party2 = party2
+                        buyer = buyer
+                        seller = seller
                         insEvt = insEvt
                         admin = admin
-                    return (icApproved, b1Update, b2Update)            
+                        notional = notional
+                    return (icApproved, bUpdate, sUpdate)            
 
 template InsuranceContractApproved
     with
-        party1 : Party
-        party2 : Party
+        -- party1 : Party
+        -- party2 : Party
+        buyer : Party
+        seller : Party
         insEvt   : InsurableEvent
         admin : Party
+        notional : Decimal
     where
         signatory admin
-        observer party1, party2
+        observer buyer, seller
         ensure 
-            (party1 /= party2)
+            (buyer /= seller)
 
         controller admin can
             EvaluateContract : ContractId InsuranceContractPayout
@@ -139,8 +164,10 @@ template InsuranceContractApproved
                             -- AboveFor strike periodInDays -> (0.0, True)
                             -- BelowFor strike periodInDays -> (0.0, True)
                     create InsuranceContractPayout with
-                        party1 = party1
-                        party2 = party2
+                        -- party1 = party1
+                        -- party2 = party2
+                        buyer = buyer
+                        seller = seller
                         admin = admin
                         exercised = True
                         party1Payout = 0.0
@@ -148,8 +175,10 @@ template InsuranceContractApproved
 
 template InsuranceContractPayout
     with
-        party1       : Party
-        party2       : Party
+        -- party1       : Party
+        -- party2       : Party
+        buyer       : Party
+        seller       : Party
         admin        : Party
         exercised    : Bool
         party1Payout : Decimal
@@ -163,21 +192,25 @@ template InsuranceContractPayout
                 --     b1 : ContractId Balance
                 --     b2 : ContractId Balance
                 do
-                    (b1Ref, _) <- fetchByKey @Balance (admin, party1)
-                    (b2Ref, _) <- fetchByKey @Balance (admin, party2)
-                    archive b1Ref
-                    archive b2Ref
-                    b1Update <- create Balance with
-                        party = party1
+                    -- (b1Ref, _) <- fetchByKey @Balance (admin, party1)
+                    -- (b2Ref, _) <- fetchByKey @Balance (admin, party2)
+                    -- archive b1Ref
+                    -- archive b2Ref
+                    (bBalRef, _) <- fetchByKey @Balance (admin, buyer)
+                    (sBalRef, _) <- fetchByKey @Balance (admin, seller)
+                    archive bBalRef
+                    archive sBalRef
+                    bUpdate <- create Balance with
+                        party = buyer
                         admin = admin
                         freeFunds = 100.0
                         lockedFunds = 0.0
-                    b2Update <- create Balance with
-                        party = party2
+                    sUpdate <- create Balance with
+                        party = seller
                         admin = admin
                         freeFunds = 100.0
                         lockedFunds = 0.0
-                    return (b1Update, b2Update)
+                    return (bUpdate, sUpdate)
   
 template Balance
     with 
@@ -279,13 +312,16 @@ setup = script do
 
     -- for the 2 accepted events, an insurance contract is proposed
     propIC1 <- submit p1 do
-        exerciseCmd approve1 ProposeInsuranceContract with proposer = p1; proposee = p2
+        exerciseCmd approve1 ProposeInsuranceContract with 
+            proposer = p1; proposee = p2; asBuyer = True; notional = 100.0
     propIC2 <- submit p2 do
-        exerciseCmd approve1 ProposeInsuranceContract with proposer = p2; proposee = p3
+        exerciseCmd approve1 ProposeInsuranceContract with 
+            proposer = p2; proposee = p3; asBuyer = False; notional = 100.0
         
     -- the proposed contract is agreed    
     acceptIC1 <- submit p2 do
-        exerciseCmd propIC1 InsuranceContractProposal_Accept with party1 = p1; party2 = p2
+        exerciseCmd propIC1 InsuranceContractProposal_Accept with 
+            counterpart = p1
     
     -- the agreement is approved and the balances updated
     (approveIC1, balance1_int, balance2_int) <- submit admin do
