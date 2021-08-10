@@ -29,6 +29,7 @@ data InsurableEvent = InsurableEvent with
   start : Time
   end : Time
   location : GPS
+  premiumPer100 : Decimal
   trigger : ContractTrigger
     deriving (Eq, Show)
 
@@ -38,6 +39,7 @@ ieEarthquake = InsurableEvent with
     start = time (date 2020 Jan 1) 0 0 0
     end = time (date 2020 Dec 31) 0 0 0
     location = (1.0, 1.0) : GPS
+    premiumPer100 = 5.0
     trigger = AboveAtAnyTime 0.0
 
 -- tds : Date -> Date -> [(Date, Decimal)]

@@ -112,7 +112,39 @@ template InsuranceContractPayout
         party2Payout : Decimal
     where 
         signatory admin
+
+        controller admin can 
+            UpdateBalances : (ContractId Balance, ContractId Balance)
+                with
+                    b1 : ContractId Balance
+                    b2 : ContractId Balance
+                do
+                    archive b1
+                    archive b2
+                    b1Update <- create Balance with
+                        party = party1
+                        admin = admin
+                        freeFunds = 100.0
+                        lockedFunds = 0.0
+                    b2Update <- create Balance with
+                        party = party2
+                        admin = admin
+                        freeFunds = 100.0
+                        lockedFunds = 0.0
+                    return (b1Update, b2Update)
   
+template Balance
+    with 
+        party : Party
+        admin : Party
+        freeFunds : Decimal
+        lockedFunds : Decimal
+    where
+        signatory admin
+        observer party
+        
+        -- key party : Party
+        -- maintainer key
 
 --  
 setup : Script ()
@@ -128,6 +160,27 @@ setup = script do
     p3 <- allocateParty "P3"
     let observers = [p1, p2, p3]
 
+    -- admin creates balances
+    balance1 <- submit admin do
+        createCmd Balance with
+            party = p1
+            admin = admin
+            freeFunds = 100.0
+            lockedFunds = 0.0
+    balance2 <- submit admin do
+        createCmd Balance with
+            party = p2
+            admin = admin
+            freeFunds = 200.0
+            lockedFunds = 0.0
+    balance3 <- submit admin do
+        createCmd Balance with
+            party = p3
+            admin = admin
+            freeFunds = 300.0
+            lockedFunds = 0.0
+
+
     -- each buyer/seller proposes an insurance event proposal
     prop1 <- submit p1 do
         createCmd InsurableEventProposal with
@@ -138,6 +191,7 @@ setup = script do
                 start = time (date 2020 Jan 1) 0 0 0
                 end = time (date 2020 Dec 31) 0 0 0
                 location = (0.0, 0.0) : GPS
+                premiumPer100 = 5.0
                 trigger = AboveAtAnyTime 100.0
 
 
@@ -150,6 +204,7 @@ setup = script do
                 start = time (date 2020 Jan 1) 0 0 0
                 end = time (date 2020 Dec 31) 0 0 0
                 location = (0.0, 0.0) : GPS
+                premiumPer100 = 5.0
                 trigger = AboveAtAnyTime 7.0
     
     prop3 <- submit p3 do
@@ -161,6 +216,7 @@ setup = script do
                 start = time (date 2020 Jan 1) 0 0 0
                 end = time (date 2020 Dec 31) 0 0 0
                 location = (0.0, 0.0) : GPS
+                premiumPer100 = 5.0
                 trigger = AboveAtAnyTime 45.0
 
     -- 2 are accepted, 1 is rejected
@@ -194,5 +250,10 @@ setup = script do
     evaluateIC1 <- submit admin do
         exerciseCmd acceptIC1 EvaluateContract with
             dataSource = [(date 2020 Dec 31, 0.0)]
+
+    updateBalance <- submit admin do
+        exerciseCmd evaluateIC1 UpdateBalances with
+            b1 = balance1
+            b2 = balance2
 
     pure()
