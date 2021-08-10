@@ -1,5 +1,6 @@
 module Types where
 import DA.Date
+import DA.Time
 
 type GPS = (Decimal, Decimal)
 gpsIsValid : GPS -> Bool
@@ -25,8 +26,8 @@ data ParametricContractType =
 
 data InsurableEvent = InsurableEvent with
   pcType : ParametricContractType
-  start : Date
-  end : Date
+  start : Time
+  end : Time
   location : GPS
   trigger : ContractTrigger
     deriving (Eq, Show)
@@ -34,7 +35,16 @@ data InsurableEvent = InsurableEvent with
 -- check type can be created
 ieEarthquake = InsurableEvent with
     pcType = RichterScale
-    start = date 2020 Jan 1
-    end = date 2020 Dec 31
+    start = time (date 2020 Jan 1) 0 0 0
+    end = time (date 2020 Dec 31) 0 0 0
     location = (1.0, 1.0) : GPS
     trigger = AboveAtAnyTime 0.0
+
+-- tds : Date -> Date -> [(Date, Decimal)]
+tds : Date -> Date -> [(Date, Decimal)]
+tds x y = [(x, 0.0)]
+y = tds (date 2020 Jan 1) (date 2020 Dec 31)
+
+t1 = date 2020 Jan 1
+
+t2 = time (date 2020 Jan 1) 0 0 0

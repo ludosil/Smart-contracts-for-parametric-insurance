@@ -3,6 +3,7 @@ module Main where
 import Daml.Script
 import Types
 import DA.Date
+import DA.Time
 
 template InsurableEventProposal
     with
@@ -80,13 +81,18 @@ template InsuranceContractAgreement
     where
         signatory party1, party2
         observer admin
-        ensure party1 /= party2
+        ensure 
+            (party1 /= party2)
 
         controller admin can
             EvaluateContract : ContractId InsuranceContractPayout
                 with
                     dataSource : [(Date, Decimal)]
                 do
+                    now <- getTime
+                    assertMsg 
+                        "Cannot evaluate before expiry" 
+                        (now > insEvt.end)
                     create InsuranceContractPayout with
                         party1 = party1
                         party2 = party2
@@ -112,6 +118,9 @@ template InsuranceContractPayout
 setup : Script ()
 setup = script do
 
+    -- start on Jan 1
+    setTime $ time (date 2020 Jan 1) 00 00 00
+    
     -- allocate admin and 3 buyers/sellers
     admin <- allocateParty "Admin"
     p1 <- allocateParty "P1"
@@ -126,8 +135,8 @@ setup = script do
             approver = admin
             insEvt = InsurableEvent with
                 pcType = WindSpeed
-                start = date 2020 Jan 1
-                end = date 2020 Dec 31
+                start = time (date 2020 Jan 1) 0 0 0
+                end = time (date 2020 Dec 31) 0 0 0
                 location = (0.0, 0.0) : GPS
                 trigger = AboveAtAnyTime 100.0
 
@@ -138,8 +147,8 @@ setup = script do
             approver = admin
             insEvt = InsurableEvent with
                 pcType = RichterScale
-                start = date 2020 Jan 1
-                end = date 2020 Dec 31
+                start = time (date 2020 Jan 1) 0 0 0
+                end = time (date 2020 Dec 31) 0 0 0
                 location = (0.0, 0.0) : GPS
                 trigger = AboveAtAnyTime 7.0
     
@@ -149,8 +158,8 @@ setup = script do
             approver = admin
             insEvt = InsurableEvent with
                 pcType = Temperature
-                start = date 2020 Jan 1
-                end = date 2020 Dec 31
+                start = time (date 2020 Jan 1) 0 0 0
+                end = time (date 2020 Dec 31) 0 0 0
                 location = (0.0, 0.0) : GPS
                 trigger = AboveAtAnyTime 45.0
 
@@ -177,6 +186,11 @@ setup = script do
         exerciseCmd propIC1 InsuranceContractProposal_Accept with party1 = p1; party2 = p2
     
     -- agreed contract is evaluated to a payout
+    evaluateIC1Fail <- submitMustFail admin do
+        exerciseCmd acceptIC1 EvaluateContract with
+            dataSource = [(date 2020 Dec 31, 0.0)]
+
+    passTime (days 1000)
     evaluateIC1 <- submit admin do
         exerciseCmd acceptIC1 EvaluateContract with
             dataSource = [(date 2020 Dec 31, 0.0)]
