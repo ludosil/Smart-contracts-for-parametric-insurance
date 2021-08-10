@@ -85,6 +85,46 @@ template InsuranceContractAgreement
             (party1 /= party2)
 
         controller admin can
+
+            InsuranceContractAgreement_Approve : (ContractId InsuranceContractApproved, ContractId Balance, ContractId Balance)
+                -- with
+                --     b1 : ContractId Balance
+                --     b2 : ContractId Balance
+                do
+                    (b1Ref, _) <- fetchByKey @Balance (admin, party1)
+                    (b2Ref, _) <- fetchByKey @Balance (admin, party2)
+                    archive b1Ref
+                    archive b2Ref
+                    b1Update <- create Balance with
+                        party = party1
+                        admin = admin
+                        freeFunds = 100.0
+                        lockedFunds = 0.0
+                    b2Update <- create Balance with
+                        party = party2
+                        admin = admin
+                        freeFunds = 100.0
+                        lockedFunds = 0.0
+                    icApproved <- create InsuranceContractApproved with
+                        party1 = party1
+                        party2 = party2
+                        insEvt = insEvt
+                        admin = admin
+                    return (icApproved, b1Update, b2Update)            
+
+template InsuranceContractApproved
+    with
+        party1 : Party
+        party2 : Party
+        insEvt   : InsurableEvent
+        admin : Party
+    where
+        signatory admin
+        observer party1, party2
+        ensure 
+            (party1 /= party2)
+
+        controller admin can
             EvaluateContract : ContractId InsuranceContractPayout
                 with
                     dataSource : [(Date, Decimal)]
@@ -93,6 +133,11 @@ template InsuranceContractAgreement
                     assertMsg 
                         "Cannot evaluate before expiry" 
                         (now > insEvt.end)
+                    let (payoff, exercised) : (Decimal, Bool) = case insEvt.trigger of
+                            AboveAtAnyTime strike -> (0.0, any (\(dt,val) -> val > strike) dataSource)
+                            BelowAtAnyTime strike -> (0.0, any (\(dt,val) -> val < strike) dataSource)
+                            -- AboveFor strike periodInDays -> (0.0, True)
+                            -- BelowFor strike periodInDays -> (0.0, True)
                     create InsuranceContractPayout with
                         party1 = party1
                         party2 = party2
@@ -100,7 +145,6 @@ template InsuranceContractAgreement
                         exercised = True
                         party1Payout = 0.0
                         party2Payout = 0.0
-
 
 template InsuranceContractPayout
     with
@@ -115,12 +159,14 @@ template InsuranceContractPayout
 
         controller admin can 
             UpdateBalances : (ContractId Balance, ContractId Balance)
-                with
-                    b1 : ContractId Balance
-                    b2 : ContractId Balance
+                -- with
+                --     b1 : ContractId Balance
+                --     b2 : ContractId Balance
                 do
-                    archive b1
-                    archive b2
+                    (b1Ref, _) <- fetchByKey @Balance (admin, party1)
+                    (b2Ref, _) <- fetchByKey @Balance (admin, party2)
+                    archive b1Ref
+                    archive b2Ref
                     b1Update <- create Balance with
                         party = party1
                         admin = admin
@@ -143,8 +189,8 @@ template Balance
         signatory admin
         observer party
         
-        -- key party : Party
-        -- maintainer key
+        key (admin, party) : (Party, Party)
+        maintainer key._1
 
 --  
 setup : Script ()
@@ -241,19 +287,25 @@ setup = script do
     acceptIC1 <- submit p2 do
         exerciseCmd propIC1 InsuranceContractProposal_Accept with party1 = p1; party2 = p2
     
+    -- the agreement is approved and the balances updated
+    (approveIC1, balance1_int, balance2_int) <- submit admin do
+        exerciseCmd acceptIC1 InsuranceContractAgreement_Approve
+            -- b1 = balance1
+            -- b2 = balance2
+
     -- agreed contract is evaluated to a payout
     evaluateIC1Fail <- submitMustFail admin do
-        exerciseCmd acceptIC1 EvaluateContract with
+        exerciseCmd approveIC1 EvaluateContract with
             dataSource = [(date 2020 Dec 31, 0.0)]
 
     passTime (days 1000)
     evaluateIC1 <- submit admin do
-        exerciseCmd acceptIC1 EvaluateContract with
+        exerciseCmd approveIC1 EvaluateContract with
             dataSource = [(date 2020 Dec 31, 0.0)]
 
     updateBalance <- submit admin do
-        exerciseCmd evaluateIC1 UpdateBalances with
-            b1 = balance1
-            b2 = balance2
+        exerciseCmd evaluateIC1 UpdateBalances
+            -- b1 = balance1_int
+            -- b2 = balance2_int
 
     pure()
