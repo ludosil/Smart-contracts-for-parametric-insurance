@@ -8,17 +8,17 @@ template InsurableEventProposal
     with
         proposer : Party
         approver : Party
-        insEvt   : InsuranceEvent
+        insEvt   : InsurableEvent
     where
         signatory proposer 
         observer approver
     
         controller approver can
-            InsurableEventProposal_Approve : ContractId InsuranceEventApproval
+            InsurableEventProposal_Approve : ContractId InsurableEventApproval
                 with
                     observers : [Party]
                 do
-                    create InsuranceEventApproval with
+                    create InsurableEventApproval with
                         approver = approver
                         observers = observers
                         insEvt = insEvt
@@ -27,11 +27,11 @@ template InsurableEventProposal
                 do
                     pure()
       
-template InsuranceEventApproval
+template InsurableEventApproval
     with 
         approver  : Party
         observers : [Party]
-        insEvt    : InsuranceEvent
+        insEvt    : InsurableEvent
     where
         signatory approver
         observer observers
@@ -46,15 +46,18 @@ template InsuranceEventApproval
                     proposer = proposer
                     proposee = proposee
                     insEvt = insEvt
+                    admin = approver
 
 template InsuranceContractProposal
     with
         proposer : Party
         proposee : Party
-        insEvt   : InsuranceEvent
+        insEvt   : InsurableEvent
+        admin    : Party
     where
         signatory proposer
-        observer proposee
+        observer proposee, admin
+        ensure proposer /= proposee
 
         controller proposee can 
             InsuranceContractProposal_Accept : ContractId InsuranceContractAgreement
@@ -63,50 +66,49 @@ template InsuranceContractProposal
                     party2 : Party
                 do
                     create InsuranceContractAgreement with
-                        party1 = party2
+                        party1 = party1
                         party2 = party2
                         insEvt = insEvt
+                        admin = admin
 
 template InsuranceContractAgreement
     with
         party1 : Party
         party2 : Party
-        insEvt   : InsuranceEvent
+        insEvt   : InsurableEvent
+        admin : Party
     where
         signatory party1, party2
-        
-template InsuranceContractPayout
-    with
-        admin        : Party
-        exercised    : Bool
-        party1Payout : Decimal
-        party2Payout : Decimal
-    where 
-        signatory admin
-
-template TrustedDataSource
-    with
-        admin      : Party
-        dataStream : [(Date, Decimal)]
-    where
-        signatory admin
+        observer admin
+        ensure party1 /= party2
 
         controller admin can
-            ApplyDataToEvaluateContract : ContractId InsuranceContractPayout
+            EvaluateContract : ContractId InsuranceContractPayout
                 with
-                    icId : ContractId InsuranceContractAgreement
+                    dataSource : [(Date, Decimal)]
                 do
-                    -- code to feed data stream to trigger function
-
-                    -- archive icId
                     create InsuranceContractPayout with
+                        party1 = party1
+                        party2 = party2
                         admin = admin
                         exercised = True
                         party1Payout = 0.0
                         party2Payout = 0.0
 
 
+template InsuranceContractPayout
+    with
+        party1       : Party
+        party2       : Party
+        admin        : Party
+        exercised    : Bool
+        party1Payout : Decimal
+        party2Payout : Decimal
+    where 
+        signatory admin
   
+
+--  
 setup : Script ()
 setup = script do
 
@@ -122,7 +124,7 @@ setup = script do
         createCmd InsurableEventProposal with
             proposer = p1
             approver = admin
-            insEvt = InsuranceEvent with
+            insEvt = InsurableEvent with
                 pcType = WindSpeed
                 start = date 2020 Jan 1
                 end = date 2020 Dec 31
@@ -134,7 +136,7 @@ setup = script do
         createCmd InsurableEventProposal with
             proposer = p2
             approver = admin
-            insEvt = InsuranceEvent with
+            insEvt = InsurableEvent with
                 pcType = RichterScale
                 start = date 2020 Jan 1
                 end = date 2020 Dec 31
@@ -145,7 +147,7 @@ setup = script do
         createCmd InsurableEventProposal with
             proposer = p3
             approver = admin
-            insEvt = InsuranceEvent with
+            insEvt = InsurableEvent with
                 pcType = Temperature
                 start = date 2020 Jan 1
                 end = date 2020 Dec 31
@@ -154,10 +156,12 @@ setup = script do
 
     -- 2 are accepted, 1 is rejected
     approve1 <- submit admin do
-        exerciseCmd prop1 InsurableEventProposal_Approve with observers = observers
+        exerciseCmd prop1 InsurableEventProposal_Approve with 
+            observers = observers
 
     approve2 <- submit admin do
-        exerciseCmd prop2 InsurableEventProposal_Approve with observers = observers    
+        exerciseCmd prop2 InsurableEventProposal_Approve with
+            observers = observers
 
     submit admin do
         exerciseCmd prop3 InsurableEventProposal_Reject
@@ -172,16 +176,9 @@ setup = script do
     acceptIC1 <- submit p2 do
         exerciseCmd propIC1 InsuranceContractProposal_Accept with party1 = p1; party2 = p2
     
-    -- create a data source
-    let windSpeed = [(date 2020 Jan 31, 0.0), (date 2020 Dec 31, 0.0)] : [(Date, Decimal)] 
-    windSpeedDataSource <- submit admin do
-        createCmd TrustedDataSource with
-            admin = admin
-            dataStream = windSpeed
-
-    -- apply data source to evaluate contract
+    -- agreed contract is evaluated to a payout
     evaluateIC1 <- submit admin do
-        exerciseCmd windSpeedDataSource ApplyDataToEvaluateContract with
-            icId = acceptIC1
+        exerciseCmd acceptIC1 EvaluateContract with
+            dataSource = [(date 2020 Dec 31, 0.0)]
 
     pure()
