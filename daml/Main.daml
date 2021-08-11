@@ -259,7 +259,7 @@ setup = script do
             lockedFunds = 0.0
 
     -- make some proposals
-    laQuakeEventProposal <- submit laResident do
+    laQuakeEvtProposal <- submit laResident do
         createCmd InsurableEventProposal with
             proposer = laResident
             approver = admin
@@ -271,7 +271,7 @@ setup = script do
                 premiumPer100 = 5.0
                 trigger       = AboveAtAnyTime 7.0
 
-    manillaExtremeHeatProposal <- submit manillaResident do
+    manillaExtrHeatProposal <- submit manillaResident do
         createCmd InsurableEventProposal with
             proposer = manillaResident
             approver = admin
@@ -296,12 +296,12 @@ setup = script do
                 trigger       = AboveAtAnyTime 0.0
 
     -- 2 are accepted by the admin, the default proposal is rejected
-    laQuakeEventApproval <- submit admin do
-        exerciseCmd laQuakeEventProposal InsurableEventProposal_Approve with 
+    laQuakeEvtApproval <- submit admin do
+        exerciseCmd laQuakeEvtProposal InsurableEventProposal_Approve with 
             observers = observers
 
-    manillaExtremeHeatEventApproval <- submit admin do
-        exerciseCmd manillaExtremeHeatProposal InsurableEventProposal_Approve with
+    manillaExtrHeatEvtApproval <- submit admin do
+        exerciseCmd manillaExtrHeatProposal InsurableEventProposal_Approve with
             observers = observers
 
     submit admin do
@@ -310,18 +310,18 @@ setup = script do
     -- an insurance contract is proposed on each of the 2 approved events
     -- each party is looking for cover of 1500
     laQuakeContractProposal <- submit laResident do
-        exerciseCmd laQuakeEventApproval ProposeInsuranceContract with 
+        exerciseCmd laQuakeEvtApproval ProposeInsuranceContract with 
             proposer = laResident; proposee = insurer; asBuyer = True; notional = 1500.0
-    manillaExtremeHeatContractProposal <- submit manillaResident do
-        exerciseCmd manillaExtremeHeatEventApproval ProposeInsuranceContract with 
+    manillaExtrHeatContractProposal <- submit manillaResident do
+        exerciseCmd manillaExtrHeatEvtApproval ProposeInsuranceContract with 
             proposer = manillaResident; proposee = insurer; asBuyer = True; notional = 1500.0
         
     -- both contracts are agreed
     laQuakeContractAcceptance <- submit insurer do
         exerciseCmd laQuakeContractProposal InsuranceContractProposal_Accept with 
             counterpart = laResident
-    manillaExtremeHeatContractAcceptance <- submit insurer do
-        exerciseCmd manillaExtremeHeatContractProposal InsuranceContractProposal_Accept with 
+    manillaExtrHeatContractAcceptance <- submit insurer do
+        exerciseCmd manillaExtrHeatContractProposal InsuranceContractProposal_Accept with 
             counterpart = manillaResident
     
     -- but only the first contract can be accepted
@@ -330,7 +330,7 @@ setup = script do
     (laQuakeContractApproval, _, _) <- submit admin do
         exerciseCmd laQuakeContractAcceptance InsuranceContractAgreement_Approve
     submitMustFail admin do
-        exerciseCmd manillaExtremeHeatContractAcceptance InsuranceContractAgreement_Approve
+        exerciseCmd manillaExtrHeatContractAcceptance InsuranceContractAgreement_Approve
 
     -- proxy the trusted data source
     -- max readings on richter scale per month
