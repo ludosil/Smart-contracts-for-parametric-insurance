@@ -13,6 +13,7 @@ template InsurableEventProposal
     where
         signatory proposer 
         observer approver
+        ensure gpsIsValid insEvt.location
     
         controller approver can
             InsurableEventProposal_Approve : ContractId InsurableEventApproved
@@ -20,9 +21,9 @@ template InsurableEventProposal
                     observers : [Party]
                 do
                     create InsurableEventApproved with
-                        approver = approver
+                        approver  = approver
                         observers = observers
-                        insEvt = insEvt
+                        insEvt    = insEvt
 
             InsurableEventProposal_Reject : ()
                 do
@@ -37,6 +38,14 @@ template InsurableEventApproved
         signatory approver
         observer observers
 
+        controller approver can 
+            AddObserver : ContractId InsurableEventApproved
+                    with
+                        observer : Party
+                    do
+                        create this with
+                            observers = observers ++ [observer]
+
         nonconsuming choice ProposeInsuranceContract : ContractId InsuranceContractProposal
             with
                 proposer : Party
@@ -45,12 +54,16 @@ template InsurableEventApproved
                 notional : Decimal
             controller proposer
             do
+                now <- getTime
+                assertMsg 
+                    "Cannot propose contract after event has started" 
+                    (now < insEvt.start)
                 create InsuranceContractProposal with
                     proposer = proposer
                     proposee = proposee
-                    asBuyer = asBuyer
-                    insEvt = insEvt
-                    admin = approver
+                    asBuyer  = asBuyer
+                    insEvt   = insEvt
+                    admin    = approver
                     notional = notional
 
 template InsuranceContractProposal
@@ -69,30 +82,22 @@ template InsuranceContractProposal
         controller proposee can 
             InsuranceContractProposal_Accept : ContractId InsuranceContractAgreement
                 with
-                    -- party1 : Party
-                    -- party2 : Party
-                    -- buyer : Party
-                    -- seller : Party
                     counterpart : Party
 
-                do
+                do                    
                     create InsuranceContractAgreement with
-                        -- party1 = party1
-                        -- party2 = party2
-                        buyer = if asBuyer then counterpart else proposee
-                        seller = if asBuyer then proposee else counterpart
-                        insEvt = insEvt
-                        admin = admin
+                        buyer    = if asBuyer then counterpart else proposee
+                        seller   = if asBuyer then proposee else counterpart
+                        insEvt   = insEvt
+                        admin    = admin
                         notional = notional
 
 template InsuranceContractAgreement
     with
-        -- party1 : Party
-        -- party2 : Party
-        buyer : Party
-        seller : Party
+        buyer    : Party
+        seller   : Party
         insEvt   : InsurableEvent
-        admin : Party
+        admin    : Party
         notional : Decimal
     where
         signatory buyer, seller
@@ -103,14 +108,7 @@ template InsuranceContractAgreement
         controller admin can
 
             InsuranceContractAgreement_Approve : (ContractId InsuranceContractApproved, ContractId Balance, ContractId Balance)
-                -- with
-                --     b1 : ContractId Balance
-                --     b2 : ContractId Balance
                 do
-                    -- (b1Ref, _) <- fetchByKey @Balance (admin, party1)
-                    -- (b2Ref, _) <- fetchByKey @Balance (admin, party2)
-                    -- archive b1Ref
-                    -- archive b2Ref
                     (bBalRef, bBal) <- fetchByKey @Balance (admin, buyer)
                     (sBalRef, sBal) <- fetchByKey @Balance (admin, seller)
 
@@ -126,31 +124,29 @@ template InsuranceContractAgreement
                     archive sBalRef
                     
                     bUpdate <- create Balance with
-                        party = buyer
-                        admin = admin
-                        freeFunds = bBal.freeFunds - premium
+                        party       = buyer
+                        admin       = admin
+                        freeFunds   = bBal.freeFunds - premium
                         lockedFunds = bBal.lockedFunds
                     sUpdate <- create Balance with
-                        party = seller
-                        admin = admin
-                        freeFunds = sBal.freeFunds - notional + premium
+                        party       = seller
+                        admin       = admin
+                        freeFunds   = sBal.freeFunds - notional + premium
                         lockedFunds = sBal.lockedFunds + notional
                     icApproved <- create InsuranceContractApproved with
-                        buyer = buyer
-                        seller = seller
-                        insEvt = insEvt
-                        admin = admin
+                        buyer    = buyer
+                        seller   = seller
+                        insEvt   = insEvt
+                        admin    = admin
                         notional = notional
                     return (icApproved, bUpdate, sUpdate)            
 
 template InsuranceContractApproved
     with
-        -- party1 : Party
-        -- party2 : Party
-        buyer : Party
-        seller : Party
+        buyer    : Party
+        seller   : Party
         insEvt   : InsurableEvent
-        admin : Party
+        admin    : Party
         notional : Decimal
     where
         signatory admin
@@ -167,45 +163,34 @@ template InsuranceContractApproved
                     assertMsg 
                         "Cannot evaluate before expiry" 
                         (now > insEvt.end)
-                    let (payoff, exercised) : (Decimal, Bool) = case insEvt.trigger of
-                            AboveAtAnyTime strike -> (0.0, any (\(dt,val) -> val > strike) dataSource)
-                            BelowAtAnyTime strike -> (0.0, any (\(dt,val) -> val < strike) dataSource)
+                    let exercised : Bool = case insEvt.trigger of
+                            AboveAtAnyTime strike -> any (\(dt,val) -> val > strike) dataSource
+                            BelowAtAnyTime strike -> any (\(dt,val) -> val < strike) dataSource
                             -- AboveFor strike periodInDays -> (0.0, True)
                             -- BelowFor strike periodInDays -> (0.0, True)
                     create InsuranceContractPayout with
-                        -- party1 = party1
-                        -- party2 = party2
-                        buyer = buyer
-                        seller = seller
-                        insEvt = insEvt
-                        admin = admin
-                        notional = notional
-                        exercised = True
+                        buyer     = buyer
+                        seller    = seller
+                        insEvt    = insEvt
+                        admin     = admin
+                        notional  = notional
+                        exercised = exercised
 
 template InsuranceContractPayout
     with
-        -- party1       : Party
-        -- party2       : Party
-        buyer       : Party
-        seller       : Party
-        insEvt   : InsurableEvent
-        admin        : Party
-        notional : Decimal
-        exercised    : Bool
+        buyer     : Party
+        seller    : Party
+        insEvt    : InsurableEvent
+        admin     : Party
+        notional  : Decimal
+        exercised : Bool
 
     where 
         signatory admin
 
         controller admin can 
             UpdateBalances : (ContractId Balance, ContractId Balance)
-                -- with
-                --     b1 : ContractId Balance
-                --     b2 : ContractId Balance
                 do
-                    -- (b1Ref, _) <- fetchByKey @Balance (admin, party1)
-                    -- (b2Ref, _) <- fetchByKey @Balance (admin, party2)
-                    -- archive b1Ref
-                    -- archive b2Ref
                     (bBalRef, bBal) <- fetchByKey @Balance (admin, buyer)
                     (sBalRef, sBal) <- fetchByKey @Balance (admin, seller)
 
@@ -213,23 +198,24 @@ template InsuranceContractPayout
 
                     archive bBalRef
                     archive sBalRef
+                    
                     bUpdate <- create Balance with
-                        party = buyer
-                        admin = admin
-                        freeFunds = if exercised then bBal.freeFunds + notional else bBal.freeFunds
+                        party       = buyer
+                        admin       = admin
+                        freeFunds   = if exercised then bBal.freeFunds + notional else bBal.freeFunds
                         lockedFunds = bBal.lockedFunds
                     sUpdate <- create Balance with
-                        party = seller
-                        admin = admin
-                        freeFunds = if not exercised then sBal.freeFunds + notional else sBal.freeFunds
+                        party       = seller
+                        admin       = admin
+                        freeFunds   = if not exercised then sBal.freeFunds + notional else sBal.freeFunds
                         lockedFunds = sBal.lockedFunds - notional --freed whatever happens
                     return (bUpdate, sUpdate)
   
 template Balance
     with 
-        party : Party
-        admin : Party
-        freeFunds : Decimal
+        party       : Party
+        admin       : Party
+        freeFunds   : Decimal
         lockedFunds : Decimal
     where
         signatory admin
@@ -242,119 +228,139 @@ template Balance
 setup : Script ()
 setup = script do
 
-    -- start on Jan 1
-    setTime $ time (date 2020 Jan 1) 00 00 00
+    -- start on Dec 31 2021
+    setTime $ time (date 2021 Dec 31) 00 00 00
     
-    -- allocate admin and 3 buyers/sellers
-    admin <- allocateParty "Admin"
-    p1 <- allocateParty "P1"
-    p2 <- allocateParty "P2"
-    p3 <- allocateParty "P3"
-    let observers = [p1, p2, p3]
+    -- allocate admin and 3 parties
+    admin           <- allocateParty "Admin"
+    laResident      <- allocateParty "LA resident"
+    manillaResident <- allocateParty "Manilla resident"
+    insurer         <- allocateParty "Insurer"
+    let observers = [laResident, manillaResident, insurer]
 
     -- admin creates balances
-    balance1 <- submit admin do
+    balanceLA <- submit admin do
         createCmd Balance with
-            party = p1
-            admin = admin
-            freeFunds = 100.0
+            party       = laResident
+            admin       = admin
+            freeFunds   = 1000.0
             lockedFunds = 0.0
-    balance2 <- submit admin do
+    balanceManilla <- submit admin do
         createCmd Balance with
-            party = p2
-            admin = admin
-            freeFunds = 200.0
+            party       = manillaResident
+            admin       = admin
+            freeFunds   = 1000.0
             lockedFunds = 0.0
-    balance3 <- submit admin do
+    balanceInsurer <- submit admin do
         createCmd Balance with
-            party = p3
-            admin = admin
-            freeFunds = 300.0
+            party       = insurer
+            admin       = admin
+            freeFunds   = 2000.0
             lockedFunds = 0.0
 
-
-    -- each buyer/seller proposes an insurance event proposal
-    prop1 <- submit p1 do
+    -- make some proposals
+    laQuakeEventProposal <- submit laResident do
         createCmd InsurableEventProposal with
-            proposer = p1
+            proposer = laResident
             approver = admin
-            insEvt = InsurableEvent with
-                pcType = WindSpeed
-                start = time (date 2020 Jan 1) 0 0 0
-                end = time (date 2020 Dec 31) 0 0 0
-                location = (0.0, 0.0) : GPS
+            insEvt   = InsurableEvent with
+                pcType        = RichterScale
+                start         = time (date 2022 Jan 1) 0 0 0
+                end           = time (date 2023 Jan 1) 0 0 0
+                location      = (34.052235, -118.243683) : GPS
                 premiumPer100 = 5.0
-                trigger = AboveAtAnyTime 100.0
+                trigger       = AboveAtAnyTime 7.0
 
-
-    prop2 <- submit p2 do
+    manillaExtremeHeatProposal <- submit manillaResident do
         createCmd InsurableEventProposal with
-            proposer = p2
+            proposer = manillaResident
             approver = admin
-            insEvt = InsurableEvent with
-                pcType = RichterScale
-                start = time (date 2020 Jan 1) 0 0 0
-                end = time (date 2020 Dec 31) 0 0 0
-                location = (0.0, 0.0) : GPS
+            insEvt   = InsurableEvent with
+                pcType        = Temperature
+                start         = time (date 2022 Sep 1) 0 0 0
+                end           = time (date 2022 Nov 1) 0 0 0
+                location      = (14.599512, 120.984222) : GPS
                 premiumPer100 = 5.0
-                trigger = AboveAtAnyTime 7.0
+                trigger       = AboveAtAnyTime 38.0
     
-    prop3 <- submit p3 do
+    defaultProposal <- submit laResident do
         createCmd InsurableEventProposal with
-            proposer = p3
+            proposer = laResident
             approver = admin
-            insEvt = InsurableEvent with
-                pcType = Temperature
-                start = time (date 2020 Jan 1) 0 0 0
-                end = time (date 2020 Dec 31) 0 0 0
-                location = (0.0, 0.0) : GPS
-                premiumPer100 = 5.0
-                trigger = AboveAtAnyTime 45.0
+            insEvt   = InsurableEvent with
+                pcType        = Temperature
+                start         = time (date 2020 Jan 1) 0 0 0
+                end           = time (date 2020 Dec 31) 0 0 0
+                location      = (0.0, 0.0) : GPS
+                premiumPer100 = 0.0
+                trigger       = AboveAtAnyTime 0.0
 
-    -- 2 are accepted, 1 is rejected
-    approve1 <- submit admin do
-        exerciseCmd prop1 InsurableEventProposal_Approve with 
+    -- 2 are accepted by the admin, the default proposal is rejected
+    laQuakeEventApproval <- submit admin do
+        exerciseCmd laQuakeEventProposal InsurableEventProposal_Approve with 
             observers = observers
 
-    approve2 <- submit admin do
-        exerciseCmd prop2 InsurableEventProposal_Approve with
+    manillaExtremeHeatEventApproval <- submit admin do
+        exerciseCmd manillaExtremeHeatProposal InsurableEventProposal_Approve with
             observers = observers
 
     submit admin do
-        exerciseCmd prop3 InsurableEventProposal_Reject
+        exerciseCmd defaultProposal InsurableEventProposal_Reject
 
-    -- for the 2 accepted events, an insurance contract is proposed
-    propIC1 <- submit p1 do
-        exerciseCmd approve1 ProposeInsuranceContract with 
-            proposer = p1; proposee = p2; asBuyer = True; notional = 100.0
-    propIC2 <- submit p2 do
-        exerciseCmd approve1 ProposeInsuranceContract with 
-            proposer = p2; proposee = p3; asBuyer = False; notional = 100.0
+    -- an insurance contract is proposed on each of the 2 approved events
+    -- each party is looking for cover of 1500
+    laQuakeContractProposal <- submit laResident do
+        exerciseCmd laQuakeEventApproval ProposeInsuranceContract with 
+            proposer = laResident; proposee = insurer; asBuyer = True; notional = 1500.0
+    manillaExtremeHeatContractProposal <- submit manillaResident do
+        exerciseCmd manillaExtremeHeatEventApproval ProposeInsuranceContract with 
+            proposer = manillaResident; proposee = insurer; asBuyer = True; notional = 1500.0
         
-    -- the proposed contract is agreed    
-    acceptIC1 <- submit p2 do
-        exerciseCmd propIC1 InsuranceContractProposal_Accept with 
-            counterpart = p1
+    -- both contracts are agreed
+    laQuakeContractAcceptance <- submit insurer do
+        exerciseCmd laQuakeContractProposal InsuranceContractProposal_Accept with 
+            counterpart = laResident
+    manillaExtremeHeatContractAcceptance <- submit insurer do
+        exerciseCmd manillaExtremeHeatContractProposal InsuranceContractProposal_Accept with 
+            counterpart = manillaResident
     
-    -- the agreement is approved and the balances updated
-    (approveIC1, balance1_int, balance2_int) <- submit admin do
-        exerciseCmd acceptIC1 InsuranceContractAgreement_Approve
-            -- b1 = balance1
-            -- b2 = balance2
+    -- but only the first contract can be accepted
+    -- since the contract locks up 1500 of the insurer's capital (less the premium)
+    -- this isn't sufficient to write the second contract
+    (laQuakeContractApproval, _, _) <- submit admin do
+        exerciseCmd laQuakeContractAcceptance InsuranceContractAgreement_Approve
+    submitMustFail admin do
+        exerciseCmd manillaExtremeHeatContractAcceptance InsuranceContractAgreement_Approve
 
-    -- agreed contract is evaluated to a payout
-    evaluateIC1Fail <- submitMustFail admin do
-        exerciseCmd approveIC1 EvaluateContract with
-            dataSource = [(date 2020 Dec 31, 0.0)]
+    -- proxy the trusted data source
+    -- max readings on richter scale per month
+    let laRichter2022 = [(date 2022 Jan 31, 3.3),
+                         (date 2022 Feb 28, 3.1),
+                         (date 2022 Mar 31, 4.0),
+                         (date 2022 Apr 30, 2.8),
+                         (date 2022 May 31, 3.0),
+                         (date 2022 Jun 30, 3.3),
+                         (date 2022 Jul 31, 3.9),
+                         (date 2022 Aug 31, 4.2),
+                         (date 2022 Sep 30, 4.5),
+                         (date 2022 Oct 31, 5.5),
+                         (date 2022 Nov 30, 4.2),
+                         (date 2022 Dec 31, 3.3)] : [(Date, Decimal)]
+    
+    -- the contract cannot be evaluated while the expiry has not passed
+    submitMustFail admin do
+        exerciseCmd laQuakeContractApproval EvaluateContract with
+            dataSource = laRichter2022
 
-    passTime (days 1000)
-    evaluateIC1 <- submit admin do
-        exerciseCmd approveIC1 EvaluateContract with
-            dataSource = [(date 2020 Dec 31, 0.0)]
+    -- roll forward to Jan 2 2023 and the contract can be evaluated
+    passTime (days 367)
+    laQuakeContractEval <- submit admin do
+        exerciseCmd laQuakeContractApproval EvaluateContract with
+            dataSource = laRichter2022
 
-    updateBalance <- submit admin do
-        exerciseCmd evaluateIC1 UpdateBalances
-            -- b1 = balance1_int
-            -- b2 = balance2_int
-
+    -- update the balances
+    -- the contract should payout if any of the richter values exceed 7.0
+    submit admin do
+        exerciseCmd laQuakeContractEval UpdateBalances
+      
     pure()

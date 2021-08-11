@@ -18,38 +18,34 @@ data ContractTrigger =
         deriving (Eq,Show)
  
 data ParametricContractType = 
-  WindSpeed | 
+  WindSpeed    | 
   RichterScale |
-  WaterLevel |
+  WaterLevel   |
   Temperature
     deriving (Eq, Show)
 
 data InsurableEvent = InsurableEvent with
-  pcType : ParametricContractType
-  start : Time
-  end : Time
-  location : GPS
+  pcType        : ParametricContractType
+  start         : Time
+  end           : Time
+  location      : GPS
   premiumPer100 : Decimal
-  trigger : ContractTrigger
+  trigger       : ContractTrigger
     deriving (Eq, Show)
 
--- check type can be created
-ieEarthquake = InsurableEvent with
-    pcType = RichterScale
-    start = time (date 2020 Jan 1) 0 0 0
-    end = time (date 2020 Dec 31) 0 0 0
-    location = (1.0, 1.0) : GPS
+-- define some insurable events
+ieLosAngelesEarthquake2022 = InsurableEvent with
+    pcType        = RichterScale
+    start         = time (date 2022 Jan 1) 0 0 0
+    end           = time (date 2023 Jan 1) 0 0 0
+    location      = (34.052235, -118.243683) : GPS
     premiumPer100 = 5.0
-    trigger = AboveAtAnyTime 0.0
+    trigger       = AboveAtAnyTime 7.0
 
--- tds : Date -> Date -> [(Date, Decimal)]
-tds : Date -> Date -> [(Date, Decimal)]
-tds x y = [(x, 0.0)]
-y = tds (date 2020 Jan 1) (date 2020 Dec 31)
-
-t1 = date 2020 Jan 1
-
-t2 = time (date 2020 Jan 1) 0 0 0
-
-xs = [(1,2),(2,1),(3,1)]
-ys = map (\(dt,val) -> val > 1) xs
+ieManillaExtremeHeat2021SepOct = InsurableEvent with
+    pcType        = Temperature
+    start         = time (date 2021 Sep 1) 0 0 0
+    end           =  time (date 2021 Nov 1) 0 0 0
+    location      = (14.599512, 120.984222) : GPS
+    premiumPer100 = 5.0
+    trigger       = AboveAtAnyTime 38.0
