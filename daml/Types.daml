@@ -10,6 +10,15 @@ gpsIsValid gps =
     (snd gps) >= -180.0 &&
     (snd gps) < 180.0
 
+-- isIeProposalValid = 
+--     case of insEvt.pcType
+--     WindSpeed    -> ...
+--     RichterScale -> 
+--         case of insEvt.trigger
+
+--     WaterLevel   -> ...
+--     Temperature  -> ...
+
 data ContractTrigger =
     AboveAtAnyTime with strike : Decimal |
     BelowAtAnyTime with strike : Decimal
@@ -29,7 +38,7 @@ data InsurableEvent = InsurableEvent with
   start         : Time
   end           : Time
   location      : GPS
-  premiumPer100 : Decimal
+  premiumPer100 : Decimal    -- should be part of proposal not insurable event
   trigger       : ContractTrigger
     deriving (Eq, Show)
 

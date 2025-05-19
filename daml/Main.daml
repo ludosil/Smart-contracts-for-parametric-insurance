@@ -51,7 +51,7 @@ template InsurableEventApproved
                 proposer : Party
                 proposee : Party
                 asBuyer  : Bool
-                notional : Decimal
+                notional : Decimal -- should add premium here as well
             controller proposer
             do
                 now <- getTime
@@ -131,8 +131,13 @@ template InsuranceContractAgreement
                     sUpdate <- create Balance with
                         party       = seller
                         admin       = admin
-                        freeFunds   = sBal.freeFunds - notional + premium
-                        lockedFunds = sBal.lockedFunds + notional
+                        freeFunds   = sBal.freeFunds - notional + premium -- -premInLockedFund
+                        -- logic missing here? e.g. 95 free + 5 for premium on 100 notional
+                        -- ok while free funds cover the notional
+                        -- but edge case to consider when premium needed as well
+                        -- likely a min/max approach needed
+                        -- e.g. premInLockedFund = max(0, notional - sBal.freeFunds)
+                        lockedFunds = sBal.lockedFunds + notional -- +premInLockedFund
                     icApproved <- create InsuranceContractApproved with
                         buyer    = buyer
                         seller   = seller
@@ -149,8 +154,8 @@ template InsuranceContractApproved
         admin    : Party
         notional : Decimal
     where
-        signatory admin
-        observer buyer, seller
+        signatory admin, buyer, seller
+        -- observer buyer, seller
         ensure 
             (buyer /= seller)
 
@@ -186,7 +191,7 @@ template InsuranceContractPayout
         exercised : Bool
 
     where 
-        signatory admin
+        signatory admin, buyer, seller
 
         controller admin can 
             UpdateBalances : (ContractId Balance, ContractId Balance)
