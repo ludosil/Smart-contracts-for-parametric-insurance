@@ -1,6 +1,6 @@
 # DAML model for parametric insurance market
 
-See [PowerPoint](Parametric insurance market.pptx) for overview.
+See _Parametric insurance market.pptx_ for overview.
 
 More info on parametric insurance here: [What is parametric insurance? | Swiss Re](https://corporatesolutions.swissre.com/insights/knowledge/what_is_parametric_insurance.html) 
 
